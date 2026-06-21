@@ -3,11 +3,21 @@ import dynamic from "next/dynamic";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { getDistance } from "@/lib/utils";
+import { 
+  AlertCircle, 
+  MapPin, 
+  Activity, 
+  Heart, 
+  LifeBuoy, 
+  Utensils, 
+  ChevronRight, 
+  Navigation,
+  X
+} from "lucide-react";
 
-// Map එක Client-side එකේ විතරක් load වෙන්න dynamic import කරනවා
 const Map = dynamic(() => import("@/components/Map").then((mod) => mod.default), { 
   ssr: false, 
-  loading: () => <div className="h-full w-full bg-gray-100 animate-pulse flex items-center justify-center font-bold text-gray-400">Loading Map View...</div>
+  loading: () => <div className="h-full w-full bg-slate-50 animate-pulse flex items-center justify-center font-medium text-slate-400">Initialising Map...</div>
 });
 
 export default function Home() {
@@ -15,73 +25,73 @@ export default function Home() {
   const [userLoc, setUserLoc] = useState<[number, number] | null>(null);
   const [selectedLoc, setSelectedLoc] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showOptions, setShowOptions] = useState(false); // SOS වර්ග තෝරන මෙනු එක පෙන්වීමට
+  const [showOptions, setShowOptions] = useState(false);
 
-  // පරිශීලකයාගේ වත්මන් ස්ථානය (GPS) ලබා ගැනීම
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setUserLoc([pos.coords.latitude, pos.coords.longitude]);
-        },
-        (err) => console.error("GPS Error:", err.message)
+        (pos) => setUserLoc([pos.coords.latitude, pos.coords.longitude]),
+        (err) => console.error(err)
       );
     }
   }, []);
 
-  // තෝරාගත් SOS වර්ගය අනුව දත්ත Database එකට යැවීම
   const sendSOS = async (type: string) => {
-    if (!userLoc) {
-      alert("Waiting for GPS location... Please ensure location is enabled.");
-      return;
-    }
-
+    if (!userLoc) return;
     setLoading(true);
     try {
       const { error } = await supabase.from("requests").insert([
         {
           latitude: userLoc[0],
           longitude: userLoc[1],
-          message: `${type} assistance needed immediately!`,
+          message: `${type} assistance required.`,
           emergency_type: type,
           status: "pending"
         }
       ]);
-
       if (error) throw error;
-      
-      alert(`SOS for ${type} sent successfully!`);
-      setShowOptions(false); // සාර්ථක වූ පසු මෙනු එක වසන්න
+      setShowOptions(false);
     } catch (err: any) {
-      alert("Error: " + err.message);
+      alert(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="flex h-screen w-full bg-gray-100 overflow-hidden font-sans">
-      {/* Sidebar - වම් පැත්ත */}
-      <div className="w-full md:w-96 bg-white shadow-2xl flex flex-col z-20">
+    <main className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans antialiased text-slate-900">
+      {/* Sidebar */}
+      <div className="w-full md:w-[400px] bg-white shadow-2xl flex flex-col z-30 border-r border-slate-100">
         
-        {/* Sidebar Header */}
-        <div className="p-8 bg-gradient-to-br from-blue-900 to-blue-700 text-white shadow-lg">
-          <h1 className="text-3xl font-black italic tracking-tighter leading-none text-blue-50">RESQUEMAP</h1>
-          <p className="text-[9px] uppercase font-black tracking-[0.2em] mt-3 opacity-60">Emergency Response System</p>
+        {/* Modern Header */}
+        <div className="p-8 bg-slate-900 text-white relative overflow-hidden">
+          <div className="relative z-10">
+            <h1 className="text-3xl font-black italic tracking-tighter leading-none flex items-center gap-2">
+              <AlertCircle className="text-rose-500 w-8 h-8" />
+              RESQUEMAP
+            </h1>
+            <div className="flex items-center gap-2 mt-4">
+               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>
+               <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-slate-400">Live Rescue Network</p>
+            </div>
+          </div>
+          {/* Subtle background decoration */}
+          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl"></div>
         </div>
 
-        {/* SOS Requests ලැයිස්තුව */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
-          <div className="flex justify-between items-center px-1 mb-2">
-            <h2 className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Active Requests</h2>
-            <span className="bg-blue-100 text-blue-600 text-[10px] font-black px-2 py-0.5 rounded-full">
-              {requests.length} Nearby
+        {/* Requests List */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/30">
+          <div className="flex justify-between items-center px-1">
+            <h2 className="font-bold text-slate-400 text-[11px] uppercase tracking-[0.15em]">Nearby Emergencies</h2>
+            <span className="bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">
+              {requests.length} Active
             </span>
           </div>
           
           {requests.length === 0 && (
-            <div className="text-center py-16 opacity-30">
-               <p className="text-sm italic font-medium">No active SOS requests</p>
+            <div className="flex flex-col items-center justify-center py-20 opacity-20">
+               <Navigation className="w-12 h-12 mb-4" />
+               <p className="text-sm font-bold uppercase tracking-widest text-center px-10 leading-relaxed">No active signals in this area</p>
             </div>
           )}
 
@@ -89,83 +99,80 @@ export default function Home() {
             <div 
               key={req.id}
               onClick={() => setSelectedLoc([req.latitude, req.longitude])}
-              className={`p-5 rounded-2xl border-2 transition-all cursor-pointer transform hover:-translate-y-1 active:scale-95 shadow-sm hover:shadow-md ${
-                req.status === 'pending' ? 'bg-white border-red-50 hover:border-red-400' : 'bg-white border-yellow-50 hover:border-yellow-400'
+              className={`group p-5 rounded-3xl border-2 transition-all cursor-pointer transform hover:scale-[1.02] active:scale-95 shadow-sm hover:shadow-xl bg-white ${
+                req.status === 'pending' ? 'border-slate-100 hover:border-rose-300' : 'border-slate-100 hover:border-amber-300'
               }`}
             >
-              <div className="flex justify-between items-start">
-                <span className={`text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider ${
-                  req.status === 'pending' ? 'bg-red-500 text-white' : 'bg-yellow-400 text-yellow-900'
-                }`}>
-                  {req.status}
-                </span>
-                {userLoc && (
-                  <span className="text-[10px] font-black text-gray-400 bg-gray-100 px-2 py-1 rounded-md">
-                    {getDistance(userLoc[0], userLoc[1], req.latitude, req.longitude)} KM
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${req.status === 'pending' ? 'bg-rose-500' : 'bg-amber-500'}`}></div>
+                  <span className={`text-[10px] font-black uppercase tracking-wider ${
+                    req.status === 'pending' ? 'text-rose-600' : 'text-amber-600'
+                  }`}>
+                    {req.status}
                   </span>
+                </div>
+                {userLoc && (
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl">
+                    <MapPin className="w-3 h-3" />
+                    {getDistance(userLoc[0], userLoc[1], req.latitude, req.longitude)} KM
+                  </div>
                 )}
               </div>
-              <p className="mt-4 text-sm font-bold text-gray-800 leading-tight">{req.message}</p>
-              <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center">
-                <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest">{req.emergency_type}</span>
-                <span className="text-[10px] text-blue-600 font-black italic">View Map →</span>
+              <p className="mt-4 text-[15px] font-bold text-slate-700 leading-snug">{req.message}</p>
+              <div className="mt-5 pt-4 border-t border-slate-50 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                   {req.emergency_type === 'Medical' && <Activity className="w-4 h-4 text-orange-500" />}
+                   {req.emergency_type === 'Food' && <Utensils className="w-4 h-4 text-emerald-500" />}
+                   {req.emergency_type === 'Rescue' && <LifeBuoy className="w-4 h-4 text-rose-500" />}
+                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{req.emergency_type}</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
               </div>
             </div>
           ))}
         </div>
 
-        {/* SOS Button Area */}
-        <div className="p-6 bg-white border-t border-gray-100 shadow-[0_-15px_30px_rgba(0,0,0,0.03)]">
+        {/* Action Area */}
+        <div className="p-6 bg-white border-t border-slate-100">
           {!showOptions ? (
             <button 
               onClick={() => setShowOptions(true)}
-              className="w-full h-20 bg-red-600 text-white text-xl font-black rounded-2xl shadow-xl hover:bg-red-700 transition-all transform active:scale-95 animate-pulse"
+              className="w-full h-20 bg-rose-600 text-white text-lg font-black rounded-[2rem] shadow-2xl shadow-rose-200 hover:bg-rose-700 transition-all transform active:scale-95 flex items-center justify-center gap-3"
             >
-              SEND SOS HELP
+              <AlertCircle className="w-6 h-6" />
+              SEND SOS SIGNAL
             </button>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                disabled={loading}
-                onClick={() => sendSOS('Medical')} 
-                className="bg-orange-500 text-white p-4 rounded-xl font-black text-xs uppercase hover:bg-orange-600 transition-all"
-              >
-                🚑 Medical
-              </button>
-              <button 
-                disabled={loading}
-                onClick={() => sendSOS('Food')} 
-                className="bg-green-500 text-white p-4 rounded-xl font-black text-xs uppercase hover:bg-green-600 transition-all"
-              >
-                🍲 Food
-              </button>
-              <button 
-                disabled={loading}
-                onClick={() => sendSOS('Rescue')} 
-                className="bg-red-500 text-white p-4 rounded-xl font-black text-xs uppercase hover:bg-red-600 transition-all"
-              >
-                🚣 Rescue
-              </button>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <button onClick={() => sendSOS('Medical')} className="flex flex-col items-center justify-center bg-orange-50 hover:bg-orange-100 border-2 border-orange-200 text-orange-600 p-4 rounded-3xl transition-all group">
+                  <Heart className="w-6 h-6 mb-2 group-hover:scale-125 transition-transform" />
+                  <span className="text-[10px] font-black uppercase tracking-tighter">Medical</span>
+                </button>
+                <button onClick={() => sendSOS('Food')} className="flex flex-col items-center justify-center bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-200 text-emerald-600 p-4 rounded-3xl transition-all group">
+                  <Utensils className="w-6 h-6 mb-2 group-hover:scale-125 transition-transform" />
+                  <span className="text-[10px] font-black uppercase tracking-tighter">Food</span>
+                </button>
+                <button onClick={() => sendSOS('Rescue')} className="flex flex-col items-center justify-center bg-rose-50 hover:bg-rose-100 border-2 border-rose-200 text-rose-600 p-4 rounded-3xl transition-all group">
+                  <LifeBuoy className="w-6 h-6 mb-2 group-hover:scale-125 transition-transform" />
+                  <span className="text-[10px] font-black uppercase tracking-tighter">Rescue</span>
+                </button>
+              </div>
               <button 
                 onClick={() => setShowOptions(false)} 
-                className="bg-gray-200 text-gray-600 p-4 rounded-xl font-black text-xs uppercase hover:bg-gray-300 transition-all"
+                className="w-full py-4 text-slate-400 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2"
               >
-                ✕ Cancel
+                <X className="w-4 h-4" /> Cancel Request
               </button>
             </div>
           )}
-          <p className="text-[9px] text-center text-gray-400 mt-4 font-bold uppercase tracking-widest italic">
-            Location will be shared with volunteers
-          </p>
         </div>
       </div>
 
-      {/* Map Area - දකුණු පැත්ත */}
+      {/* Map Content */}
       <div className="flex-1 relative">
-        <Map 
-          onRequestsUpdate={(data) => setRequests(data)} 
-          selectedLocation={selectedLoc}
-        />
+        <Map onRequestsUpdate={(data) => setRequests(data)} selectedLocation={selectedLoc} />
       </div>
     </main>
   );
