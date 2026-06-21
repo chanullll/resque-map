@@ -6,27 +6,27 @@ import L from "leaflet";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-// සාමාන්‍ය Blue Marker එක (ඔබ ඉන්න තැනට)
-const blueIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+// Icons සකස් කිරීම
+const blueIcon = L.icon({ 
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png", 
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
+  iconSize: [25, 41], 
+  iconAnchor: [12, 41] 
 });
 
-// SOS සඳහා Red Marker එක
-const redIcon = L.icon({
-  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+const redIcon = L.icon({ 
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png", 
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
+  iconSize: [25, 41], 
+  iconAnchor: [12, 41] 
 });
 
-function ChangeView({ center }: { center: [number, number] }) {
-  const map = useMap();
-  map.setView(center, map.getZoom());
-  return null;
-}
+const yellowIcon = L.icon({ 
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png", 
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41], 
+  iconAnchor: [12, 41] 
+});
 
 interface SOSRequest {
   id: number;
@@ -34,72 +34,107 @@ interface SOSRequest {
   longitude: number;
   message: string;
   emergency_type: string;
+  status: string;
 }
 
 export default function Map() {
   const [position, setPosition] = useState<[number, number]>([6.9271, 79.8612]);
   const [requests, setRequests] = useState<SOSRequest[]>([]);
-  const [hasLocation, setHasLocation] = useState(false);
 
-  // 1. දැනට පවතින SOS Requests ලබා ගැනීම
-  const fetchRequests = async () => {
-    const { data, error } = await supabase
-      .from("requests")
-      .select("*")
-      .eq("status", "pending");
-    
+  const loadData = async () => {
+    const { data } = await supabase.from("requests").select("*").neq("status", "resolved");
     if (data) setRequests(data);
-    if (error) console.error("Error fetching requests:", error);
   };
 
   useEffect(() => {
-    // පරිශීලකයාගේ ලොකේෂන් එක ගැනීම
     if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        setPosition([pos.coords.latitude, pos.coords.longitude]);
-        setHasLocation(true);
-      });
+      navigator.geolocation.getCurrentPosition((pos) => setPosition([pos.coords.latitude, pos.coords.longitude]));
     }
+    loadData();
 
-    fetchRequests();
-
-    // 2. Real-time Subscription: අලුතින් SOS එකක් ආපු ගමන් සිතියමට එකතු කරනවා
-    const subscription = supabase
-      .channel("realtime-requests")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "requests" }, 
-      (payload) => {
-        setRequests((prev) => [...prev, payload.new as SOSRequest]);
+    const channel = supabase
+      .channel('db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => {
+        loadData();
       })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(subscription);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
+  const updateRequestStatus = async (e: React.MouseEvent, id: number, newStatus: string) => {
+  e.stopPropagation();
+  console.log("Attempting to update ID:", id, "to status:", newStatus);
+
+  try {
+    // 1. Supabase එකට Update එක යවනවා
+    const { data, error } = await supabase
+      .from("requests")
+      .update({ status: newStatus })
+      .eq("id", id)
+      .select(); // මෙතැන select එකක් දැමීමෙන් අපිට ලැබෙන ප්‍රතිඵලය බලන්න පුළුවන්
+
+    if (error) {
+      console.error("Supabase Error Details:", error);
+      alert("Database Error: " + error.message);
+      return;
+    }
+
+    console.log("Update Successful, Data returned:", data);
+
+    // 2. සිතියම වහාම යාවත්කාලීන කිරීමට local state එකත් වෙනස් කරමු
+    setRequests((prev) => 
+      prev.map(req => req.id === id ? { ...req, status: newStatus } : req)
+    );
+
+    alert("Status Updated to: " + newStatus);
+
+  } catch (err) {
+    console.error("Unexpected Error:", err);
+  }
+};
+
   return (
-    <div className="h-[500px] w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
+    <div className="h-[500px] w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white relative z-0">
       <MapContainer center={position} zoom={13} style={{ height: "100%", width: "100%" }}>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         
-        {hasLocation && <ChangeView center={position} />}
+        <Marker position={position} icon={blueIcon}><Popup>ඔබ සිටින ස්ථානය</Popup></Marker>
 
-        {/* පරිශීලකයාගේ Marker එක (Blue) */}
-        <Marker position={position} icon={blueIcon}>
-          <Popup>ඔබ දැනට මෙතැන සිටී.</Popup>
-        </Marker>
-
-        {/* සියලුම SOS Requests පෙන්වීම (Red) */}
         {requests.map((req) => (
-          <Marker key={req.id} position={[req.latitude, req.longitude]} icon={redIcon}>
+          <Marker 
+            key={req.id} 
+            position={[Number(req.latitude), Number(req.longitude)]} 
+            icon={req.status === 'pending' ? redIcon : yellowIcon}
+          >
             <Popup>
-              <div className="text-center">
-                <p className="font-bold text-red-600">🚨 SOS REQUEST</p>
-                <p className="text-sm">{req.message}</p>
-                <p className="text-xs text-gray-500">Type: {req.emergency_type}</p>
+              <div className="p-2 text-center min-w-[150px]">
+                <h3 className={`font-bold ${req.status === 'pending' ? 'text-red-600' : 'text-yellow-600'}`}>
+                  {req.status === 'pending' ? '🚨 SOS REQUEST' : '⚠️ HELPING IN PROGRESS'}
+                </h3>
+                <p className="text-sm my-2 font-medium">{req.message}</p>
+                
+                {req.status === 'pending' && (
+                  <button 
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()} // මෙය ඉතා වැදගත්!
+                    onClick={(e) => updateRequestStatus(e, req.id, 'helping')}
+                    className="bg-blue-600 text-white text-xs px-4 py-2 rounded-lg font-bold hover:bg-blue-800 w-full cursor-pointer"
+                  >
+                    I WILL HELP
+                  </button>
+                )}
+
+                {req.status === 'helping' && (
+                  <button 
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => updateRequestStatus(e, req.id, 'resolved')}
+                    className="bg-green-600 text-white text-xs px-4 py-2 rounded-lg font-bold hover:bg-green-800 w-full cursor-pointer"
+                  >
+                    MARK AS RESOLVED
+                  </button>
+                )}
               </div>
             </Popup>
           </Marker>
