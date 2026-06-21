@@ -14,7 +14,7 @@ interface MapProps {
   onRequestsUpdate?: (requests: any[]) => void;
   selectedLocation?: [number, number] | null;
   filter: string;
-  safeZones: any[]; // Safe Zones දත්ත මෙතැනට ලැබෙනවා
+  safeZones: any[];
 }
 
 function MapFocus({ selectedLocation }: { selectedLocation: [number, number] | null }) {
@@ -49,35 +49,34 @@ export default function Map({ onRequestsUpdate, selectedLocation, filter, safeZo
   const filteredRequests = filter === 'All' ? requests : requests.filter(r => r.emergency_type === filter);
 
   return (
-    <div className="h-full w-full relative z-0">
+    <div className="h-full w-full relative z-0 font-sans">
       <MapContainer center={position} zoom={13} style={{ height: "100%", width: "100%" }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <MapFocus selectedLocation={selectedLocation} />
-        
-        {/* User Location */}
         <Marker position={position} icon={blueIcon}><Popup>You are here</Popup></Marker>
 
-        {/* SOS Markers */}
         {filteredRequests.map((req) => (
           <Marker key={req.id} position={[req.latitude, req.longitude]} icon={req.status === 'pending' ? redIcon : yellowIcon}>
             <Popup>
-              <div className="p-2 text-center min-w-[150px]">
-                <h3 className={`font-bold uppercase text-[10px] ${req.status === 'pending' ? 'text-rose-600' : 'text-amber-600'}`}>{req.status}</h3>
-                <p className="text-sm my-2 font-bold leading-tight">{req.message}</p>
-                {req.status === 'pending' && <button onClick={(e) => updateStatus(e, req.id, 'helping')} className="bg-blue-600 text-white text-[10px] font-black px-4 py-2 rounded-lg w-full uppercase">I will help</button>}
-                {req.status === 'helping' && <button onClick={(e) => updateStatus(e, req.id, 'resolved')} className="bg-emerald-600 text-white text-[10px] font-black px-4 py-2 rounded-lg w-full uppercase">Mark Resolved</button>}
+              <div className="p-2 text-center min-w-[200px]">
+                {req.image_url && (
+                  <img src={req.image_url} alt="Emergency" className="w-full h-32 object-cover rounded-xl mb-3 shadow-md border border-slate-100" />
+                )}
+                <h3 className={`font-black uppercase text-[10px] tracking-widest ${req.status === 'pending' ? 'text-rose-600' : 'text-amber-600'}`}>{req.status}</h3>
+                <p className="text-sm my-2 font-bold leading-tight text-slate-700">{req.message}</p>
+                {req.status === 'pending' && <button onClick={(e) => updateStatus(e, req.id, 'helping')} className="bg-blue-600 text-white text-[10px] font-black px-4 py-2 rounded-xl w-full uppercase mt-2 tracking-widest">I will help</button>}
+                {req.status === 'helping' && <button onClick={(e) => updateStatus(e, req.id, 'resolved')} className="bg-emerald-600 text-white text-[10px] font-black px-4 py-2 rounded-xl w-full uppercase mt-2 tracking-widest">Mark Resolved</button>}
               </div>
             </Popup>
           </Marker>
         ))}
 
-        {/* Safe Zone Markers - මෙය දැන් වැඩ කරනු ඇත */}
-        {safeZones && safeZones.map((zone) => (
+        {safeZones.map((zone) => (
           <Marker key={`zone-${zone.id}`} position={[zone.latitude, zone.longitude]} icon={greenIcon}>
             <Popup>
               <div className="p-2 text-center">
-                <h3 className="text-emerald-600 font-black text-[10px] uppercase tracking-widest">{zone.type}</h3>
-                <p className="text-sm font-bold mt-1 leading-tight">{zone.name}</p>
+                <h3 className="text-emerald-600 font-black text-[10px] uppercase tracking-[0.2em]">{zone.type}</h3>
+                <p className="text-sm font-bold mt-1 text-slate-700 leading-tight">{zone.name}</p>
               </div>
             </Popup>
           </Marker>
