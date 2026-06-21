@@ -22,9 +22,9 @@ interface SOSRequest {
 interface MapProps {
   onRequestsUpdate?: (requests: SOSRequest[]) => void;
   selectedLocation?: [number, number] | null;
+  filter: string;
 }
 
-// සිතියම එම ස්ථානයට ගෙන යාමට (Fly To) උදව් වන Component එක
 function MapFocus({ selectedLocation }: { selectedLocation: [number, number] | null }) {
   const map = useMap();
   useEffect(() => {
@@ -35,7 +35,7 @@ function MapFocus({ selectedLocation }: { selectedLocation: [number, number] | n
   return null;
 }
 
-export default function Map({ onRequestsUpdate, selectedLocation }: MapProps) {
+export default function Map({ onRequestsUpdate, selectedLocation, filter }: MapProps) {
   const [position, setPosition] = useState<[number, number]>([6.9271, 79.8612]);
   const [requests, setRequests] = useState<SOSRequest[]>([]);
 
@@ -52,14 +52,7 @@ export default function Map({ onRequestsUpdate, selectedLocation }: MapProps) {
       navigator.geolocation.getCurrentPosition((pos) => setPosition([pos.coords.latitude, pos.coords.longitude]));
     }
     loadData();
-
-    const channel = supabase
-      .channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => {
-        loadData();
-      })
-      .subscribe();
-
+    const channel = supabase.channel('db-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => loadData()).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -69,48 +62,27 @@ export default function Map({ onRequestsUpdate, selectedLocation }: MapProps) {
     if (error) alert("Error: " + error.message);
   };
 
+  const filteredRequests = filter === 'All' ? requests : requests.filter(r => r.emergency_type === filter);
+
   return (
     <div className="h-full w-full relative z-0">
       <MapContainer center={position} zoom={13} style={{ height: "100%", width: "100%" }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        
         <MapFocus selectedLocation={selectedLocation} />
-
         <Marker position={position} icon={blueIcon}><Popup>ඔබ සිටින ස්ථානය</Popup></Marker>
-
-        {requests.map((req) => (
-          <Marker 
-            key={req.id} 
-            position={[Number(req.latitude), Number(req.longitude)]} 
-            icon={req.status === 'pending' ? redIcon : yellowIcon}
-          >
+        {filteredRequests.map((req) => (
+          <Marker key={req.id} position={[Number(req.latitude), Number(req.longitude)]} icon={req.status === 'pending' ? redIcon : yellowIcon}>
             <Popup>
               <div className="p-2 text-center min-w-[150px]">
-                <h3 className={`font-bold ${req.status === 'pending' ? 'text-red-600' : 'text-yellow-600'}`}>
+                <h3 className={`font-bold ${req.status === 'pending' ? 'text-rose-600' : 'text-amber-600'}`}>
                   {req.status === 'pending' ? '🚨 SOS REQUEST' : '⚠️ HELPING IN PROGRESS'}
                 </h3>
                 <p className="text-sm my-2 font-medium">{req.message}</p>
-                
                 {req.status === 'pending' && (
-                  <button 
-                    type="button"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => updateRequestStatus(e, req.id, 'helping')}
-                    className="bg-blue-600 text-white text-xs px-4 py-2 rounded-lg font-bold hover:bg-blue-800 w-full"
-                  >
-                    I WILL HELP
-                  </button>
+                  <button type="button" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => updateRequestStatus(e, req.id, 'helping')} className="bg-blue-600 text-white text-xs px-4 py-2 rounded-lg font-bold w-full">I WILL HELP</button>
                 )}
-
                 {req.status === 'helping' && (
-                  <button 
-                    type="button"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => updateRequestStatus(e, req.id, 'resolved')}
-                    className="bg-green-600 text-white text-xs px-4 py-2 rounded-lg font-bold hover:bg-green-800 w-full"
-                  >
-                    MARK AS RESOLVED
-                  </button>
+                  <button type="button" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => updateRequestStatus(e, req.id, 'resolved')} className="bg-emerald-600 text-white text-xs px-4 py-2 rounded-lg font-bold w-full">MARK AS RESOLVED</button>
                 )}
               </div>
             </Popup>
