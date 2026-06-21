@@ -6,27 +6,9 @@ import L from "leaflet";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-// Icons සකස් කිරීම
-const blueIcon = L.icon({ 
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png", 
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41], 
-  iconAnchor: [12, 41] 
-});
-
-const redIcon = L.icon({ 
-  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png", 
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41], 
-  iconAnchor: [12, 41] 
-});
-
-const yellowIcon = L.icon({ 
-  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png", 
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41], 
-  iconAnchor: [12, 41] 
-});
+const blueIcon = L.icon({ iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png", shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png", iconSize: [25, 41], iconAnchor: [12, 41] });
+const redIcon = L.icon({ iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png", shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png", iconSize: [25, 41], iconAnchor: [12, 41] });
+const yellowIcon = L.icon({ iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png", shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png", iconSize: [25, 41], iconAnchor: [12, 41] });
 
 interface SOSRequest {
   id: number;
@@ -37,13 +19,32 @@ interface SOSRequest {
   status: string;
 }
 
-export default function Map() {
+interface MapProps {
+  onRequestsUpdate?: (requests: SOSRequest[]) => void;
+  selectedLocation?: [number, number] | null;
+}
+
+// සිතියම එම ස්ථානයට ගෙන යාමට (Fly To) උදව් වන Component එක
+function MapFocus({ selectedLocation }: { selectedLocation: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (selectedLocation) {
+      map.flyTo(selectedLocation, 16, { animate: true, duration: 2 });
+    }
+  }, [selectedLocation, map]);
+  return null;
+}
+
+export default function Map({ onRequestsUpdate, selectedLocation }: MapProps) {
   const [position, setPosition] = useState<[number, number]>([6.9271, 79.8612]);
   const [requests, setRequests] = useState<SOSRequest[]>([]);
 
   const loadData = async () => {
     const { data } = await supabase.from("requests").select("*").neq("status", "resolved");
-    if (data) setRequests(data);
+    if (data) {
+      setRequests(data);
+      if (onRequestsUpdate) onRequestsUpdate(data);
+    }
   };
 
   useEffect(() => {
@@ -63,42 +64,18 @@ export default function Map() {
   }, []);
 
   const updateRequestStatus = async (e: React.MouseEvent, id: number, newStatus: string) => {
-  e.stopPropagation();
-  console.log("Attempting to update ID:", id, "to status:", newStatus);
-
-  try {
-    // 1. Supabase එකට Update එක යවනවා
-    const { data, error } = await supabase
-      .from("requests")
-      .update({ status: newStatus })
-      .eq("id", id)
-      .select(); // මෙතැන select එකක් දැමීමෙන් අපිට ලැබෙන ප්‍රතිඵලය බලන්න පුළුවන්
-
-    if (error) {
-      console.error("Supabase Error Details:", error);
-      alert("Database Error: " + error.message);
-      return;
-    }
-
-    console.log("Update Successful, Data returned:", data);
-
-    // 2. සිතියම වහාම යාවත්කාලීන කිරීමට local state එකත් වෙනස් කරමු
-    setRequests((prev) => 
-      prev.map(req => req.id === id ? { ...req, status: newStatus } : req)
-    );
-
-    alert("Status Updated to: " + newStatus);
-
-  } catch (err) {
-    console.error("Unexpected Error:", err);
-  }
-};
+    e.stopPropagation();
+    const { error } = await supabase.from("requests").update({ status: newStatus }).eq("id", id);
+    if (error) alert("Error: " + error.message);
+  };
 
   return (
-    <div className="h-[500px] w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white relative z-0">
+    <div className="h-full w-full relative z-0">
       <MapContainer center={position} zoom={13} style={{ height: "100%", width: "100%" }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         
+        <MapFocus selectedLocation={selectedLocation} />
+
         <Marker position={position} icon={blueIcon}><Popup>ඔබ සිටින ස්ථානය</Popup></Marker>
 
         {requests.map((req) => (
@@ -117,9 +94,9 @@ export default function Map() {
                 {req.status === 'pending' && (
                   <button 
                     type="button"
-                    onMouseDown={(e) => e.stopPropagation()} // මෙය ඉතා වැදගත්!
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => updateRequestStatus(e, req.id, 'helping')}
-                    className="bg-blue-600 text-white text-xs px-4 py-2 rounded-lg font-bold hover:bg-blue-800 w-full cursor-pointer"
+                    className="bg-blue-600 text-white text-xs px-4 py-2 rounded-lg font-bold hover:bg-blue-800 w-full"
                   >
                     I WILL HELP
                   </button>
@@ -130,7 +107,7 @@ export default function Map() {
                     type="button"
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => updateRequestStatus(e, req.id, 'resolved')}
-                    className="bg-green-600 text-white text-xs px-4 py-2 rounded-lg font-bold hover:bg-green-800 w-full cursor-pointer"
+                    className="bg-green-600 text-white text-xs px-4 py-2 rounded-lg font-bold hover:bg-green-800 w-full"
                   >
                     MARK AS RESOLVED
                   </button>

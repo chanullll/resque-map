@@ -2,97 +2,76 @@
 import dynamic from "next/dynamic";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { getDistance } from "@/lib/utils";
 
 const Map = dynamic(() => import("@/components/Map").then((mod) => mod.default), { 
-  ssr: false,
-  loading: () => <div className="h-[400px] w-full bg-gray-200 animate-pulse flex items-center justify-center italic text-gray-500 text-lg">Loading Map View...</div>
+  ssr: false, 
+  loading: () => <div className="h-full w-full bg-gray-100 animate-pulse flex items-center justify-center">Loading Map...</div>
 });
 
 export default function Home() {
-  const [loading, setLoading] = useState(false);
-  const [myLocation, setMyLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [userLoc, setUserLoc] = useState<[number, number] | null>(null);
+  const [selectedLoc, setSelectedLoc] = useState<[number, number] | null>(null);
 
-  // ලොකේෂන් එක ලබා ගැනීම
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          console.log("Location found:", pos.coords.latitude, pos.coords.longitude);
-          setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          setLocationError(null);
-        },
-        (err) => {
-          console.error("Location error:", err.message);
-          setLocationError("Please enable location access to use the SOS feature.");
-        }
-      );
-    } else {
-      setLocationError("Geolocation is not supported by your browser.");
-    }
+    navigator.geolocation.getCurrentPosition((pos) => {
+      setUserLoc([pos.coords.latitude, pos.coords.longitude]);
+    });
   }, []);
 
-  const sendSOS = async () => {
-    console.log("SOS Button Clicked!"); // Debugging
-
-    if (!myLocation) {
-      alert("Location not found yet. Please wait or enable location.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.from("requests").insert([
-        {
-          latitude: myLocation.lat,
-          longitude: myLocation.lng,
-          message: "Emergency SOS - Immediate assistance needed!",
-          emergency_type: "Rescue",
-          status: "pending"
-        }
-      ]);
-
-      if (error) throw error;
-      alert("SOS Sent Successfully! Help is on the way.");
-    } catch (error: any) {
-      console.error("Supabase Error:", error);
-      alert("Error sending SOS: " + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <main className="flex min-h-screen flex-col items-center p-6 bg-blue-50">
-      <div className="max-w-4xl w-full text-center space-y-6">
-        <header className="py-4">
-          <h1 className="text-4xl font-black text-blue-900 tracking-tighter">RESQUEMAP</h1>
-          <p className="text-blue-600 font-medium italic">Community-Driven Disaster Response</p>
-        </header>
-
-        <div className="w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
-          <Map />
+    <main className="flex h-screen w-full bg-gray-100 overflow-hidden">
+      {/* Sidebar - වම් පැත්ත */}
+      <div className="w-full md:w-96 bg-white shadow-xl flex flex-col z-10">
+        <div className="p-6 bg-blue-900 text-white">
+          <h1 className="text-2xl font-black italic">RESQUEMAP</h1>
+          <p className="text-xs opacity-75">Live Emergency Dashboard</p>
         </div>
 
-        {locationError && (
-          <p className="text-red-500 font-bold bg-red-100 p-2 rounded">{locationError}</p>
-        )}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <h2 className="font-bold text-gray-500 text-sm uppercase tracking-widest">Active Requests</h2>
+          
+          {requests.length === 0 && <p className="text-gray-400 text-sm italic">No active requests...</p>}
 
-        <div className="py-4">
+          {requests.map((req) => (
+            <div 
+              key={req.id}
+              onClick={() => setSelectedLoc([req.latitude, req.longitude])}
+              className={`p-4 rounded-xl border-2 transition-all cursor-pointer hover:border-blue-400 ${req.status === 'pending' ? 'bg-red-50 border-red-100' : 'bg-yellow-50 border-yellow-100'}`}
+            >
+              <div className="flex justify-between items-start">
+                <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${req.status === 'pending' ? 'bg-red-200 text-red-700' : 'bg-yellow-200 text-yellow-700'}`}>
+                  {req.status}
+                </span>
+                {userLoc && (
+                  <span className="text-xs font-bold text-gray-500">
+                    {getDistance(userLoc[0], userLoc[1], req.latitude, req.longitude)} km away
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-sm font-semibold text-gray-800">{req.message}</p>
+              <p className="text-[10px] text-gray-500 mt-1 uppercase font-bold">{req.emergency_type}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-4 border-t">
           <button 
-            onClick={sendSOS}
-            disabled={loading || !myLocation}
-            className={`
-              w-full sm:w-80 h-32 text-3xl font-black rounded-3xl shadow-2xl transition-all duration-300
-              ${loading || !myLocation 
-                ? "bg-gray-400 cursor-not-allowed opacity-70" 
-                : "bg-red-600 hover:bg-red-700 active:scale-95 text-white animate-pulse"
-              }
-            `}
+            onClick={() => window.location.reload()} // සරල SOS trigger එකක් ලෙස දැනට තබා ඇත
+            className="w-full bg-red-600 text-white font-black py-4 rounded-xl shadow-lg hover:bg-red-700 transition-all"
           >
-            {loading ? "SENDING..." : !myLocation ? "WAITING FOR GPS..." : "SOS - SEND HELP"}
+            SEND SOS HELP
           </button>
         </div>
+      </div>
+
+      {/* Map - දකුණු පැත්ත */}
+      <div className="flex-1 relative">
+        <Map 
+          onRequestsUpdate={(data) => setRequests(data)} 
+          selectedLocation={selectedLoc}
+        />
       </div>
     </main>
   );
