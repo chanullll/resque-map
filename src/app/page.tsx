@@ -8,7 +8,7 @@ import { AlertCircle, Activity, Heart, LifeBuoy, Utensils, ChevronRight, X, Came
 
 const Map = dynamic(() => import("@/components/Map").then((mod) => mod.default), { 
   ssr: false, 
-  loading: () => <div className="h-full w-full bg-slate-50 animate-pulse flex items-center justify-center font-black text-slate-400">INITIALISING...</div>
+  loading: () => <div className="h-full w-full bg-slate-50 animate-pulse flex items-center justify-center font-black text-slate-400">SYNCING REAL-TIME DATA...</div>
 });
 
 export default function Home() {
@@ -22,6 +22,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'emergencies' | 'safezones' | 'stats'>('emergencies');
   const [searchQuery, setSearchQuery] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [showHeatmap, setShowHeatmap] = useState(false); // Heatmap state එක
 
   useEffect(() => {
     if ("geolocation" in navigator) navigator.geolocation.getCurrentPosition((pos) => setUserLoc([pos.coords.latitude, pos.coords.longitude]));
@@ -57,9 +58,26 @@ export default function Home() {
   return (
     <main className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900">
       <div className="w-full md:w-[400px] bg-white shadow-2xl flex flex-col z-30 border-r border-slate-100">
+        
+        {/* Modern Header with Heatmap Toggle */}
         <div className="p-8 bg-slate-900 text-white relative">
-          <h1 className="text-3xl font-black italic tracking-tighter flex items-center gap-2"><Zap className="text-rose-500 fill-rose-500 w-8 h-8" /> RESQUEMAP</h1>
-          <div className="flex bg-slate-800 p-1 rounded-2xl mt-8 border border-slate-700/50">
+          <h1 className="text-3xl font-black italic tracking-tighter flex items-center gap-2">
+            <Zap className="text-rose-500 fill-rose-500 w-8 h-8" /> RESQUEMAP
+          </h1>
+          
+          {/* Heatmap Toggle Button */}
+          <button 
+            onClick={() => setShowHeatmap(!showHeatmap)}
+            className={`mt-6 w-full py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
+              showHeatmap 
+                ? 'bg-rose-500 border-rose-400 text-white shadow-lg' 
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+            }`}
+          >
+            {showHeatmap ? '🔥 Disable Heatmap' : '📡 Enable Heatmap View'}
+          </button>
+
+          <div className="flex bg-slate-800 p-1 rounded-2xl mt-6 border border-slate-700/50">
             {['emergencies', 'safezones', 'stats'].map((mode: any) => (
               <button key={mode} onClick={() => setViewMode(mode)} className={`flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${viewMode === mode ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-500'}`}>{mode}</button>
             ))}
@@ -71,7 +89,7 @@ export default function Home() {
             <>
               <div className="relative group mb-4">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white border border-slate-100 py-3 pl-11 pr-4 rounded-2xl text-xs font-bold focus:outline-none" />
+                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white border border-slate-100 py-3 pl-11 pr-4 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm" />
               </div>
               <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4">
                 {['All', 'Medical', 'Food', 'Rescue'].map((cat) => (
@@ -89,7 +107,7 @@ export default function Home() {
               ))}
             </>
           )}
-          {viewMode === 'safezones' && <div className="space-y-4">{safeZones.map((zone) => <div key={zone.id} onClick={() => setSelectedLoc([zone.latitude, zone.longitude])} className="p-6 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-emerald-300 transition-all cursor-pointer shadow-sm"><p className="text-sm font-black text-slate-700 uppercase">{zone.name}</p></div>)}</div>}
+          {viewMode === 'safezones' && <div className="space-y-4 animate-in fade-in">{safeZones.map((zone) => <div key={zone.id} onClick={() => setSelectedLoc([zone.latitude, zone.longitude])} className="p-6 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-emerald-300 transition-all cursor-pointer shadow-sm group"><span className="text-[9px] font-black px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg mb-2 inline-block uppercase">{zone.type}</span><p className="text-sm font-black text-slate-700 uppercase">{zone.name}</p></div>)}</div>}
           {viewMode === 'stats' && <Stats requests={requests} />}
         </div>
 
@@ -100,22 +118,30 @@ export default function Home() {
             </button>
           ) : (
             <div className="space-y-4 animate-in slide-in-from-bottom-5">
-              <label className="flex items-center justify-center gap-3 bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-[2rem] cursor-pointer hover:bg-slate-100">
+              <label className="flex items-center justify-center gap-3 bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-[2rem] cursor-pointer hover:bg-slate-100 transition-all">
                 <Camera className={`w-5 h-5 ${file ? 'text-emerald-500' : 'text-slate-400'}`} />
-                <span className="text-[10px] font-black uppercase text-slate-400">{file ? "Photo Captured" : "Tap to Open Camera"}</span>
+                <span className="text-[10px] font-black uppercase text-slate-400">{file ? "Photo Captured" : "Capture Evidence"}</span>
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
               </label>
               <div className="grid grid-cols-3 gap-2">
-                <button disabled={loading} onClick={() => sendSOS('Medical')} className="flex flex-col items-center bg-orange-50 text-orange-600 p-4 rounded-3xl"><Heart className="w-6 h-6 mb-2" /><span className="text-[9px] font-black uppercase">Medical</span></button>
-                <button disabled={loading} onClick={() => sendSOS('Food')} className="flex flex-col items-center bg-emerald-50 text-emerald-600 p-4 rounded-3xl"><Utensils className="w-6 h-6 mb-2" /><span className="text-[9px] font-black uppercase">Food</span></button>
-                <button disabled={loading} onClick={() => sendSOS('Rescue')} className="flex flex-col items-center bg-rose-50 text-rose-600 p-4 rounded-3xl"><LifeBuoy className="w-6 h-6 mb-2" /><span className="text-[9px] font-black uppercase">Rescue</span></button>
-                <button onClick={() => setShowOptions(false)} className="col-span-3 py-2 text-slate-400 font-black text-[10px] uppercase text-center flex items-center justify-center gap-2"><X className="w-3 h-3" /> Cancel</button>
+                <button disabled={loading} onClick={() => sendSOS('Medical')} className="flex flex-col items-center bg-orange-50 text-orange-600 p-4 rounded-3xl transition-all hover:bg-orange-100"><Heart className="w-6 h-6 mb-2" /><span className="text-[9px] font-black uppercase">Medical</span></button>
+                <button disabled={loading} onClick={() => sendSOS('Food')} className="flex flex-col items-center bg-emerald-50 text-emerald-600 p-4 rounded-3xl transition-all hover:bg-emerald-100"><Utensils className="w-6 h-6 mb-2" /><span className="text-[9px] font-black uppercase">Food</span></button>
+                <button disabled={loading} onClick={() => sendSOS('Rescue')} className="flex flex-col items-center bg-rose-50 text-rose-600 p-4 rounded-3xl transition-all hover:bg-rose-100"><LifeBuoy className="w-6 h-6 mb-2" /><span className="text-[9px] font-black uppercase">Rescue</span></button>
+                <button onClick={() => setShowOptions(false)} className="col-span-3 py-2 text-slate-400 font-black text-[10px] uppercase text-center flex items-center justify-center gap-2 mt-2 tracking-widest"><X className="w-3 h-3" /> Cancel</button>
               </div>
             </div>
           )}
         </div>
       </div>
-      <div className="flex-1 relative overflow-hidden"><Map onRequestsUpdate={(data: any) => setRequests(data)} selectedLocation={selectedLoc} filter={activeFilter} safeZones={safeZones} /></div>
+      <div className="flex-1 relative overflow-hidden">
+        <Map 
+          onRequestsUpdate={(data: any) => setRequests(data)} 
+          selectedLocation={selectedLoc} 
+          filter={activeFilter} 
+          safeZones={safeZones} 
+          showHeatmap={showHeatmap} // මෙම prop එක Map එකට යැවේ
+        />
+      </div>
     </main>
   );
 }
