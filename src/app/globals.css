@@ -24,3 +24,17 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* Routing instructions පෙන්වන කොටුව සම්පූර්ණයෙන්ම සැඟවීමට */
+.leaflet-routing-container {
+  display: none !important;
+}
+
+/* Routing instructions පෙන්වන කොටුව සහ එහි සියලුම අංග සම්පූර්ණයෙන්ම සැඟවීමට */
+.leaflet-routing-container, 
+.leaflet-routing-alternatives-container,
+.leaflet-routing-geocoders {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

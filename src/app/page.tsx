@@ -5,11 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { getDistance } from "@/lib/utils";
 import Stats from "@/components/Stats";
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Activity, Heart, LifeBuoy, Utensils, ChevronRight, X, Camera, Zap, Search, LogIn, LogOut, User } from "lucide-react";
+import { AlertCircle, Activity, Heart, LifeBuoy, Utensils, ChevronRight, X, Camera, Zap, Search, LogIn, LogOut, User, Navigation } from "lucide-react";
 
 const Map = dynamic(() => import("@/components/Map").then((mod) => mod.default), { 
   ssr: false, 
-  loading: () => <div className="h-full w-full bg-slate-50 animate-pulse flex items-center justify-center font-black text-slate-400">LOADING SYSTEM...</div>
+  loading: () => <div className="h-full w-full bg-slate-50 animate-pulse flex items-center justify-center font-black text-slate-400 text-sm uppercase tracking-widest">Initialising...</div>
 });
 
 export default function Home() {
@@ -21,24 +21,22 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showShelterRoute, setShowShelterRoute] = useState(false);
   const [activeFilter, setActiveFilter] = useState('All');
   const [viewMode, setViewMode] = useState<'emergencies' | 'safezones' | 'stats'>('emergencies');
   const [searchQuery, setSearchQuery] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [session, setSession] = useState<any>(null); // ලොග් වූ පරිශීලකයා දැනගැනීමට
+  const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
-    // Session එක පරීක්ෂා කිරීම
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
-
+    supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     if ("geolocation" in navigator) navigator.geolocation.getCurrentPosition((pos) => setUserLoc([pos.coords.latitude, pos.coords.longitude]));
     const fetchSafeZones = async () => {
       const { data } = await supabase.from("safe_zones").select("*");
       if (data) setSafeZones(data);
     };
     fetchSafeZones();
-    return () => subscription.unsubscribe();
   }, []);
 
   const sendSOS = async (type: string) => {
@@ -54,7 +52,7 @@ export default function Home() {
         imageUrl = publicUrl.publicUrl;
       }
       await supabase.from("requests").insert([{ latitude: userLoc[0], longitude: userLoc[1], message: `${type} assistance required.`, emergency_type: type, status: "pending", image_url: imageUrl }]);
-      setFile(null); setShowOptions(false); alert("SOS Sent!");
+      setFile(null); setShowOptions(false); alert("SOS Sent Successfully!");
     } catch (err: any) { alert(err.message); } finally { setLoading(false); }
   };
 
@@ -63,38 +61,24 @@ export default function Home() {
   return (
     <main className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900 antialiased">
       <div className="w-full md:w-[400px] bg-white shadow-2xl flex flex-col z-30 border-r border-slate-100">
-        
-        {/* Header with Auth Button */}
         <div className="p-8 bg-slate-900 text-white relative">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-black italic tracking-tighter flex items-center gap-2"><Zap className="text-rose-500 fill-rose-500 w-8 h-8" /> RESQUEMAP</h1>
-            
-            {/* Login / Logout UI */}
             {session ? (
-              <button onClick={() => supabase.auth.signOut()} className="p-2 bg-slate-800 rounded-xl hover:bg-rose-500 transition-colors group">
-                <LogOut className="w-4 h-4 text-slate-400 group-hover:text-white" />
-              </button>
+              <button onClick={() => supabase.auth.signOut()} className="p-2 bg-slate-800 rounded-xl hover:bg-rose-500 transition-colors"><LogOut className="w-4 h-4 text-slate-400 hover:text-white" /></button>
             ) : (
-              <button onClick={() => router.push('/login')} className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl hover:bg-blue-600 transition-all">
-                <LogIn className="w-4 h-4" />
-                <span className="text-[9px] font-black uppercase tracking-widest">Login</span>
-              </button>
+              <button onClick={() => router.push('/login')} className="bg-slate-800 px-3 py-1.5 rounded-xl hover:bg-blue-600 transition-all text-[9px] font-black uppercase flex items-center gap-2"><LogIn className="w-3 h-3" /> Login</button>
             )}
           </div>
 
-          {session && (
-            <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex items-center gap-3 mb-6 animate-in fade-in zoom-in-95">
-              <div className="bg-emerald-500 p-2 rounded-lg"><User className="w-3 h-3 text-white" /></div>
-              <div className="flex flex-col">
-                <span className="text-[8px] font-black text-slate-500 uppercase">Volunteer Mode</span>
-                <span className="text-[10px] font-bold text-slate-300 truncate w-40">{session.user.email}</span>
-              </div>
-            </div>
-          )}
-
-          <button onClick={() => setShowHeatmap(!showHeatmap)} className={`w-full py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${showHeatmap ? 'bg-rose-500 border-rose-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-            {showHeatmap ? '🔥 Disable Heatmap' : '📡 Enable Heatmap View'}
-          </button>
+          <div className="flex flex-col gap-2">
+            <button onClick={() => setShowHeatmap(!showHeatmap)} className={`w-full py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${showHeatmap ? 'bg-rose-500 border-rose-400 text-white shadow-lg' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}>
+              {showHeatmap ? '🔥 Disable Heatmap' : '📡 Enable Heatmap View'}
+            </button>
+            <button onClick={() => setShowShelterRoute(!showShelterRoute)} className={`w-full py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-2 ${showShelterRoute ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-200' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}>
+              <Navigation className="w-3 h-3" /> {showShelterRoute ? '🛑 Stop Shelter Navigation' : '⛺ Find Nearest Shelter'}
+            </button>
+          </div>
           
           <div className="flex bg-slate-800 p-1 rounded-2xl mt-6 border border-slate-700/50">
             {['emergencies', 'safezones', 'stats'].map((mode: any) => (
@@ -108,7 +92,7 @@ export default function Home() {
             <>
               <div className="relative group mb-4">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                <input type="text" placeholder="Search incidents..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white border border-slate-100 py-3 pl-11 pr-4 rounded-2xl text-xs font-bold focus:outline-none" />
+                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white border border-slate-100 py-3 pl-11 pr-4 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all" />
               </div>
               <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4">
                 {['All', 'Medical', 'Food', 'Rescue'].map((cat) => (
@@ -116,9 +100,9 @@ export default function Home() {
                 ))}
               </div>
               {filteredList.map((req) => (
-                <div key={req.id} onClick={() => setSelectedLoc([req.latitude, req.longitude])} className="p-5 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-rose-300 transition-all cursor-pointer shadow-sm">
-                  <div className="flex justify-between items-center text-[9px] font-black uppercase">
-                    <span className={req.status === 'pending' ? 'text-rose-600' : 'text-amber-600'}>{req.status}</span>
+                <div key={req.id} onClick={() => setSelectedLoc([req.latitude, req.longitude])} className={`p-5 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-rose-300 transition-all cursor-pointer shadow-sm transform hover:scale-[1.02]`}>
+                  <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-wider">
+                    <span className={req.status === 'pending' ? 'text-rose-600 font-black' : 'text-amber-600 font-black'}>{req.status}</span>
                     {userLoc && <span className="text-slate-400 italic"> {getDistance(userLoc[0], userLoc[1], req.latitude, req.longitude)} KM </span>}
                   </div>
                   <p className="mt-4 text-sm font-bold text-slate-700 leading-tight">{req.message}</p>
@@ -126,19 +110,19 @@ export default function Home() {
               ))}
             </>
           )}
-          {viewMode === 'safezones' && <div className="space-y-4 animate-in fade-in">{safeZones.map((zone) => <div key={zone.id} onClick={() => setSelectedLoc([zone.latitude, zone.longitude])} className="p-6 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-emerald-300 transition-all cursor-pointer shadow-sm"><span className="text-[9px] font-black px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg mb-2 inline-block uppercase">{zone.type}</span><p className="text-sm font-black text-slate-700 uppercase">{zone.name}</p></div>)}</div>}
+          {viewMode === 'safezones' && <div className="space-y-4 animate-in fade-in">{safeZones.map((zone) => <div key={zone.id} onClick={() => setSelectedLoc([zone.latitude, zone.longitude])} className="p-6 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-emerald-300 transition-all cursor-pointer shadow-sm group"><span className="text-[9px] font-black px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg mb-3 inline-block uppercase">{zone.type}</span><p className="text-sm font-black text-slate-700 uppercase tracking-tight">{zone.name}</p></div>)}</div>}
           {viewMode === 'stats' && <Stats requests={requests} />}
         </div>
 
         <div className="p-6 bg-white border-t border-slate-100">
           {!showOptions ? (
-            <button onClick={() => setShowOptions(true)} className="w-full h-20 bg-rose-600 text-white text-lg font-black rounded-[2.5rem] shadow-xl hover:bg-red-700 transition-all flex items-center justify-center gap-3 animate-pulse uppercase tracking-widest">
+            <button onClick={() => setShowOptions(true)} className="w-full h-20 bg-rose-600 text-white text-lg font-black rounded-[2.5rem] shadow-xl hover:bg-rose-700 transition-all flex items-center justify-center gap-3 animate-pulse uppercase tracking-widest">
               <AlertCircle className="w-6 h-6" /> Send SOS Signal
             </button>
           ) : (
             <div className="space-y-4 animate-in slide-in-from-bottom-5">
-              <label className="flex items-center justify-center gap-3 bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-[2rem] cursor-pointer hover:bg-slate-100">
-                <Camera className={`w-5 h-5 ${file ? 'text-emerald-500' : 'text-slate-400'}`} />
+              <label className="flex items-center justify-center gap-3 bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-[2rem] cursor-pointer hover:bg-slate-100 transition-all group">
+                <Camera className={`w-5 h-5 ${file ? 'text-emerald-500' : 'text-slate-400 group-hover:text-blue-500'}`} />
                 <span className="text-[10px] font-black uppercase text-slate-400">{file ? "Photo Captured" : "Capture Evidence"}</span>
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
               </label>
@@ -146,14 +130,14 @@ export default function Home() {
                 <button disabled={loading} onClick={() => sendSOS('Medical')} className="flex flex-col items-center bg-orange-50 text-orange-600 p-4 rounded-3xl transition-all hover:bg-orange-100"><Heart className="w-6 h-6 mb-2" /><span className="text-[9px] font-black uppercase">Medical</span></button>
                 <button disabled={loading} onClick={() => sendSOS('Food')} className="flex flex-col items-center bg-emerald-50 text-emerald-600 p-4 rounded-3xl transition-all hover:bg-emerald-100"><Utensils className="w-6 h-6 mb-2" /><span className="text-[9px] font-black uppercase">Food</span></button>
                 <button disabled={loading} onClick={() => sendSOS('Rescue')} className="flex flex-col items-center bg-rose-50 text-rose-600 p-4 rounded-3xl transition-all hover:bg-rose-100"><LifeBuoy className="w-6 h-6 mb-2" /><span className="text-[9px] font-black uppercase">Rescue</span></button>
-                <button onClick={() => setShowOptions(false)} className="col-span-3 py-2 text-slate-400 font-black text-[10px] uppercase text-center flex items-center justify-center gap-2 mt-2 tracking-widest"><X className="w-3 h-3" /> Cancel</button>
+                <button onClick={() => setShowOptions(false)} className="col-span-3 py-2 text-slate-400 font-black text-[10px] uppercase text-center flex items-center justify-center gap-2 mt-2 font-black"><X className="w-3 h-3" /> Cancel SOS</button>
               </div>
             </div>
           )}
         </div>
       </div>
       <div className="flex-1 relative overflow-hidden">
-        <Map onRequestsUpdate={(data: any) => setRequests(data)} selectedLocation={selectedLoc} filter={activeFilter} safeZones={safeZones} showHeatmap={showHeatmap} isVolunteer={!!session} />
+        <Map onRequestsUpdate={(data: any) => setRequests(data)} selectedLocation={selectedLoc} filter={activeFilter} safeZones={safeZones} showHeatmap={showHeatmap} isVolunteer={!!session} showShelterRoute={showShelterRoute} />
       </div>
     </main>
   );
