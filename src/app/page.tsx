@@ -4,33 +4,41 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { getDistance } from "@/lib/utils";
 import Stats from "@/components/Stats";
-import { AlertCircle, Activity, Heart, LifeBuoy, Utensils, ChevronRight, X, Camera, Zap, Search } from "lucide-react";
+import { useRouter } from 'next/navigation';
+import { AlertCircle, Activity, Heart, LifeBuoy, Utensils, ChevronRight, X, Camera, Zap, Search, LogIn, LogOut, User } from "lucide-react";
 
 const Map = dynamic(() => import("@/components/Map").then((mod) => mod.default), { 
   ssr: false, 
-  loading: () => <div className="h-full w-full bg-slate-50 animate-pulse flex items-center justify-center font-black text-slate-400">SYNCING REAL-TIME DATA...</div>
+  loading: () => <div className="h-full w-full bg-slate-50 animate-pulse flex items-center justify-center font-black text-slate-400">LOADING SYSTEM...</div>
 });
 
 export default function Home() {
+  const router = useRouter();
   const [requests, setRequests] = useState<any[]>([]);
   const [safeZones, setSafeZones] = useState<any[]>([]);
   const [userLoc, setUserLoc] = useState<[number, number] | null>(null);
   const [selectedLoc, setSelectedLoc] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const [activeFilter, setActiveFilter] = useState('All');
   const [viewMode, setViewMode] = useState<'emergencies' | 'safezones' | 'stats'>('emergencies');
   const [searchQuery, setSearchQuery] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [showHeatmap, setShowHeatmap] = useState(false); // Heatmap state එක
+  const [session, setSession] = useState<any>(null); // ලොග් වූ පරිශීලකයා දැනගැනීමට
 
   useEffect(() => {
+    // Session එක පරීක්ෂා කිරීම
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+
     if ("geolocation" in navigator) navigator.geolocation.getCurrentPosition((pos) => setUserLoc([pos.coords.latitude, pos.coords.longitude]));
     const fetchSafeZones = async () => {
       const { data } = await supabase.from("safe_zones").select("*");
       if (data) setSafeZones(data);
     };
     fetchSafeZones();
+    return () => subscription.unsubscribe();
   }, []);
 
   const sendSOS = async (type: string) => {
@@ -45,41 +53,52 @@ export default function Home() {
         const { data: publicUrl } = supabase.storage.from('request_image').getPublicUrl(fileName);
         imageUrl = publicUrl.publicUrl;
       }
-
-      const { error } = await supabase.from("requests").insert([{ latitude: userLoc[0], longitude: userLoc[1], message: `${type} assistance required.`, emergency_type: type, status: "pending", image_url: imageUrl }]);
-      if (error) throw error;
-      setFile(null); setShowOptions(false);
-      alert("SOS signal sent with evidence!");
+      await supabase.from("requests").insert([{ latitude: userLoc[0], longitude: userLoc[1], message: `${type} assistance required.`, emergency_type: type, status: "pending", image_url: imageUrl }]);
+      setFile(null); setShowOptions(false); alert("SOS Sent!");
     } catch (err: any) { alert(err.message); } finally { setLoading(false); }
   };
 
   const filteredList = requests.filter(r => (activeFilter === 'All' || r.emergency_type === activeFilter) && r.message.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
-    <main className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900">
+    <main className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900 antialiased">
       <div className="w-full md:w-[400px] bg-white shadow-2xl flex flex-col z-30 border-r border-slate-100">
         
-        {/* Modern Header with Heatmap Toggle */}
+        {/* Header with Auth Button */}
         <div className="p-8 bg-slate-900 text-white relative">
-          <h1 className="text-3xl font-black italic tracking-tighter flex items-center gap-2">
-            <Zap className="text-rose-500 fill-rose-500 w-8 h-8" /> RESQUEMAP
-          </h1>
-          
-          {/* Heatmap Toggle Button */}
-          <button 
-            onClick={() => setShowHeatmap(!showHeatmap)}
-            className={`mt-6 w-full py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
-              showHeatmap 
-                ? 'bg-rose-500 border-rose-400 text-white shadow-lg' 
-                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
-            }`}
-          >
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-black italic tracking-tighter flex items-center gap-2"><Zap className="text-rose-500 fill-rose-500 w-8 h-8" /> RESQUEMAP</h1>
+            
+            {/* Login / Logout UI */}
+            {session ? (
+              <button onClick={() => supabase.auth.signOut()} className="p-2 bg-slate-800 rounded-xl hover:bg-rose-500 transition-colors group">
+                <LogOut className="w-4 h-4 text-slate-400 group-hover:text-white" />
+              </button>
+            ) : (
+              <button onClick={() => router.push('/login')} className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl hover:bg-blue-600 transition-all">
+                <LogIn className="w-4 h-4" />
+                <span className="text-[9px] font-black uppercase tracking-widest">Login</span>
+              </button>
+            )}
+          </div>
+
+          {session && (
+            <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex items-center gap-3 mb-6 animate-in fade-in zoom-in-95">
+              <div className="bg-emerald-500 p-2 rounded-lg"><User className="w-3 h-3 text-white" /></div>
+              <div className="flex flex-col">
+                <span className="text-[8px] font-black text-slate-500 uppercase">Volunteer Mode</span>
+                <span className="text-[10px] font-bold text-slate-300 truncate w-40">{session.user.email}</span>
+              </div>
+            </div>
+          )}
+
+          <button onClick={() => setShowHeatmap(!showHeatmap)} className={`w-full py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${showHeatmap ? 'bg-rose-500 border-rose-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
             {showHeatmap ? '🔥 Disable Heatmap' : '📡 Enable Heatmap View'}
           </button>
-
+          
           <div className="flex bg-slate-800 p-1 rounded-2xl mt-6 border border-slate-700/50">
             {['emergencies', 'safezones', 'stats'].map((mode: any) => (
-              <button key={mode} onClick={() => setViewMode(mode)} className={`flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${viewMode === mode ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-500'}`}>{mode}</button>
+              <button key={mode} onClick={() => setViewMode(mode)} className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${viewMode === mode ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-500'}`}>{mode}</button>
             ))}
           </div>
         </div>
@@ -89,7 +108,7 @@ export default function Home() {
             <>
               <div className="relative group mb-4">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white border border-slate-100 py-3 pl-11 pr-4 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm" />
+                <input type="text" placeholder="Search incidents..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white border border-slate-100 py-3 pl-11 pr-4 rounded-2xl text-xs font-bold focus:outline-none" />
               </div>
               <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4">
                 {['All', 'Medical', 'Food', 'Rescue'].map((cat) => (
@@ -107,18 +126,18 @@ export default function Home() {
               ))}
             </>
           )}
-          {viewMode === 'safezones' && <div className="space-y-4 animate-in fade-in">{safeZones.map((zone) => <div key={zone.id} onClick={() => setSelectedLoc([zone.latitude, zone.longitude])} className="p-6 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-emerald-300 transition-all cursor-pointer shadow-sm group"><span className="text-[9px] font-black px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg mb-2 inline-block uppercase">{zone.type}</span><p className="text-sm font-black text-slate-700 uppercase">{zone.name}</p></div>)}</div>}
+          {viewMode === 'safezones' && <div className="space-y-4 animate-in fade-in">{safeZones.map((zone) => <div key={zone.id} onClick={() => setSelectedLoc([zone.latitude, zone.longitude])} className="p-6 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-emerald-300 transition-all cursor-pointer shadow-sm"><span className="text-[9px] font-black px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg mb-2 inline-block uppercase">{zone.type}</span><p className="text-sm font-black text-slate-700 uppercase">{zone.name}</p></div>)}</div>}
           {viewMode === 'stats' && <Stats requests={requests} />}
         </div>
 
         <div className="p-6 bg-white border-t border-slate-100">
           {!showOptions ? (
-            <button onClick={() => setShowOptions(true)} className="w-full h-20 bg-rose-600 text-white text-lg font-black rounded-[2.5rem] shadow-xl hover:bg-rose-700 transition-all flex items-center justify-center gap-3 animate-pulse">
-              <AlertCircle className="w-6 h-6" /> SEND SOS SIGNAL
+            <button onClick={() => setShowOptions(true)} className="w-full h-20 bg-rose-600 text-white text-lg font-black rounded-[2.5rem] shadow-xl hover:bg-red-700 transition-all flex items-center justify-center gap-3 animate-pulse uppercase tracking-widest">
+              <AlertCircle className="w-6 h-6" /> Send SOS Signal
             </button>
           ) : (
             <div className="space-y-4 animate-in slide-in-from-bottom-5">
-              <label className="flex items-center justify-center gap-3 bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-[2rem] cursor-pointer hover:bg-slate-100 transition-all">
+              <label className="flex items-center justify-center gap-3 bg-slate-50 border-2 border-dashed border-slate-200 p-4 rounded-[2rem] cursor-pointer hover:bg-slate-100">
                 <Camera className={`w-5 h-5 ${file ? 'text-emerald-500' : 'text-slate-400'}`} />
                 <span className="text-[10px] font-black uppercase text-slate-400">{file ? "Photo Captured" : "Capture Evidence"}</span>
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
@@ -134,13 +153,7 @@ export default function Home() {
         </div>
       </div>
       <div className="flex-1 relative overflow-hidden">
-        <Map 
-          onRequestsUpdate={(data: any) => setRequests(data)} 
-          selectedLocation={selectedLoc} 
-          filter={activeFilter} 
-          safeZones={safeZones} 
-          showHeatmap={showHeatmap} // මෙම prop එක Map එකට යැවේ
-        />
+        <Map onRequestsUpdate={(data: any) => setRequests(data)} selectedLocation={selectedLoc} filter={activeFilter} safeZones={safeZones} showHeatmap={showHeatmap} isVolunteer={!!session} />
       </div>
     </main>
   );
